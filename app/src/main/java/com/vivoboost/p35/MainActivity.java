@@ -226,7 +226,7 @@ public class MainActivity extends Activity {
         force.addView(button("Kembalikan animasi normal", () -> requestApplyProfile("BALANCED")));
         force.addView(button("Aktifkan Penghemat Baterai", () -> requestApplyProfile("POWER_SAVE")));
         force.addView(button("Nonaktifkan Penghemat Baterai", () -> requestApplyProfile("POWER_NORMAL")));
-        force.addView(text("Force Gaming mengatur animasi sistem ke 0,5x dan meminta mode hemat daya dimatikan. Balanced mengembalikan animasi ke 1x. Tidak mengubah clock CPU/GPU atau perlindungan suhu.", 12, MUTED));
+        force.addView(text("Force Gaming mengatur animasi sistem ke 0,5x tanpa mengubah mode baterai. Balanced mengembalikan animasi ke 1x. Mode baterai memiliki tombol terpisah. Tidak mengubah clock CPU/GPU atau perlindungan suhu.", 12, MUTED));
         root.addView(force);
 
         LinearLayout gaming = card();
