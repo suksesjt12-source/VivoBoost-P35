@@ -3,6 +3,13 @@ package com.vivoboost.p35;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Intent;
+import android.content.ComponentName;
+import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import android.os.IBinder;
+import rikka.shizuku.Shizuku;
+import com.vivoboost.p35.privileged.IPerformanceService;
+import com.vivoboost.p35.privileged.PerformanceUserService;
 import android.content.SharedPreferences;
 import android.os.BatteryManager;
 import android.os.Bundle;
@@ -35,14 +42,68 @@ public class MainActivity extends Activity {
     private TextView profileSummary, healthSummary, routineSummary;
     private ProgressBar ramBar, storageBar;
     private String selectedProfile = "Seimbang";
+    private TextView shizukuStatus;
+    private IPerformanceService privilegedService;
+    private String pendingProfile;
+    private boolean serviceBinding;
+    private static final int SHIZUKU_REQUEST_CODE = 2417;
+
+    private final Shizuku.OnRequestPermissionResultListener permissionListener = (requestCode, grantResult) -> {
+        if (requestCode == SHIZUKU_REQUEST_CODE) {
+            if (grantResult == PackageManager.PERMISSION_GRANTED) connectShizukuService();
+            else updateShizukuStatus("Izin Shizuku ditolak.");
+        }
+    };
+    private final Shizuku.OnBinderReceivedListener binderListener =
+            () -> updateShizukuStatus("Shizuku aktif. Tekan Hubungkan untuk melanjutkan.");
+    private final Shizuku.OnBinderDeadListener binderDeadListener = () -> {
+        privilegedService = null;
+        serviceBinding = false;
+        updateShizukuStatus("Koneksi Shizuku terputus.");
+    };
+    private final ServiceConnection serviceConnection = new ServiceConnection() {
+        @Override public void onServiceConnected(ComponentName name, IBinder service) {
+            privilegedService = IPerformanceService.Stub.asInterface(service);
+            serviceBinding = false;
+            int uid = -1;
+            try { uid = Shizuku.getUid(); } catch (Exception ignored) {}
+            updateShizukuStatus(uid == 0 ? "Terhubung dengan akses root." : "Terhubung dengan akses ADB/Shizuku.");
+            if (pendingProfile != null) {
+                String profile = pendingProfile;
+                pendingProfile = null;
+                executeProfile(profile);
+            }
+        }
+        @Override public void onServiceDisconnected(ComponentName name) {
+            privilegedService = null;
+            serviceBinding = false;
+            updateShizukuStatus("Layanan Shizuku terputus.");
+        }
+    };
+    private Shizuku.UserServiceArgs userServiceArgs;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         selectedProfile = getPreferences(MODE_PRIVATE).getString(PROFILE_KEY, "Seimbang");
         buildUi();
+        Shizuku.addRequestPermissionResultListener(permissionListener);
+        Shizuku.addBinderReceivedListenerSticky(binderListener);
+        Shizuku.addBinderDeadListener(binderDeadListener);
         refreshStats();
         showProfile();
+    }
+
+    @Override
+    protected void onDestroy() {
+        Shizuku.removeRequestPermissionResultListener(permissionListener);
+        Shizuku.removeBinderReceivedListener(binderListener);
+        Shizuku.removeBinderDeadListener(binderDeadListener);
+        if (userServiceArgs != null) {
+            try { Shizuku.unbindUserService(userServiceArgs, serviceConnection, true); }
+            catch (Exception ignored) {}
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -154,6 +215,19 @@ public class MainActivity extends Activity {
         routineSummary = text("", 13, MUTED);
         profiles.addView(routineSummary);
         root.addView(profiles);
+
+        LinearLayout force = card();
+        force.addView(heading("Force Performance • ADB/Shizuku"));
+        force.addView(text("Menerapkan pengaturan sistem melalui layanan Shizuku. Izin diminta secara terpisah; hanya preset yang disediakan aplikasi yang dapat dijalankan.", 13, MUTED));
+        shizukuStatus = text("Status Shizuku: belum diperiksa", 13, AMBER);
+        force.addView(shizukuStatus);
+        force.addView(button("Hubungkan / minta izin Shizuku", this::requestShizuku));
+        force.addView(button("Terapkan Force Gaming", () -> requestApplyProfile("GAMING")));
+        force.addView(button("Kembalikan animasi normal", () -> requestApplyProfile("BALANCED")));
+        force.addView(button("Aktifkan Penghemat Baterai", () -> requestApplyProfile("POWER_SAVE")));
+        force.addView(button("Nonaktifkan Penghemat Baterai", () -> requestApplyProfile("POWER_NORMAL")));
+        force.addView(text("Force Gaming mengatur animasi sistem ke 0,5x dan meminta mode hemat daya dimatikan. Balanced mengembalikan animasi ke 1x. Tidak mengubah clock CPU/GPU atau perlindungan suhu.", 12, MUTED));
+        root.addView(force);
 
         LinearLayout gaming = card();
         gaming.addView(heading("Gaming session"));
@@ -296,6 +370,82 @@ public class MainActivity extends Activity {
             }
         }
         return "Tidak didukung Android versi ini";
+    }
+
+
+    private void updateShizukuStatus(String message) {
+        runOnUiThread(() -> {
+            if (shizukuStatus != null) shizukuStatus.setText("Status Shizuku: " + message);
+        });
+    }
+
+    private void requestShizuku() {
+        if (!Shizuku.pingBinder()) {
+            updateShizukuStatus("Shizuku belum berjalan. Jalankan layanan Shizuku terlebih dahulu.");
+            Toast.makeText(this, "Mulai Shizuku, lalu coba hubungkan lagi.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (Shizuku.isPreV11()) {
+            updateShizukuStatus("Versi layanan Shizuku terlalu lama. Perbarui Shizuku.");
+            return;
+        }
+        try {
+            if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                connectShizukuService();
+            } else {
+                Shizuku.requestPermission(SHIZUKU_REQUEST_CODE);
+                updateShizukuStatus("Menunggu persetujuan izin Shizuku.");
+            }
+        } catch (Exception error) {
+            updateShizukuStatus("Gagal memeriksa izin Shizuku.");
+        }
+    }
+
+    private void connectShizukuService() {
+        if (serviceBinding || privilegedService != null) return;
+        try {
+            if (!Shizuku.pingBinder()) {
+                updateShizukuStatus("Binder Shizuku tidak tersedia.");
+                return;
+            }
+            userServiceArgs = new Shizuku.UserServiceArgs(
+                    new ComponentName(this, PerformanceUserService.class))
+                    .daemon(false)
+                    .tag("VivoBoostP35Performance")
+                    .version(1)
+                    .processNameSuffix("performance");
+            serviceBinding = true;
+            Shizuku.bindUserService(userServiceArgs, serviceConnection);
+            updateShizukuStatus("Menghubungkan layanan...");
+        } catch (Exception error) {
+            serviceBinding = false;
+            updateShizukuStatus("Gagal menghubungkan layanan.");
+        }
+    }
+
+    private void requestApplyProfile(String profile) {
+        if (privilegedService != null) {
+            executeProfile(profile);
+        } else {
+            pendingProfile = profile;
+            requestShizuku();
+        }
+    }
+
+    private void executeProfile(String profile) {
+        IPerformanceService service = privilegedService;
+        if (service == null) {
+            updateShizukuStatus("Layanan belum terhubung.");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                String result = service.applyProfile(profile);
+                updateShizukuStatus(result);
+            } catch (Exception error) {
+                updateShizukuStatus("Perintah gagal. Periksa koneksi dan izin Shizuku.");
+            }
+        }, "VivoBoost-Profile").start();
     }
 
     private void openAppDetails() {
