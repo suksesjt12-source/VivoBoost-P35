@@ -1,28 +1,41 @@
 # VivoBoost P35
 
-VivoBoost P35 adalah toolkit diagnostik dan panduan optimasi untuk Vivo Y12s dengan MediaTek Helio P35. Versi ini menambahkan **Pro Performance Suite** yang tersedia langsung tanpa pembayaran.
+VivoBoost P35 adalah toolkit diagnostik dan pengaturan performa untuk Vivo Y12s / MediaTek Helio P35.
 
 ## Fitur
 
-- Dashboard RAM: penggunaan dan sisa memori berdasarkan Android ActivityManager.
-- Dashboard penyimpanan: kapasitas terpakai dan tersedia.
-- Status baterai: persentase, status pengisian, dan suhu baterai jika disediakan perangkat.
-- Thermal status: membaca status termal Android 10+ jika didukung firmware.
-- Profil Gaming, Seimbang, dan Hemat yang tersimpan secara lokal.
-- Rekomendasi perawatan berdasarkan indikator memori, suhu baterai, dan ruang penyimpanan.
-- Pintasan ke pengaturan resmi Android: Jangan Ganggu, aplikasi, layar, baterai, dan penyimpanan.
+- Dashboard RAM, penyimpanan, baterai, suhu baterai, dan status termal Android.
+- Profil Gaming, Seimbang, dan Hemat yang tersimpan lokal.
+- Force Performance melalui Shizuku/ADB dengan izin eksplisit.
+- Force Gaming mengatur tiga skala animasi Android ke 0,5x.
+- Balanced mengembalikan skala animasi ke 1,0x.
+- Tombol terpisah untuk mengaktifkan atau menonaktifkan Penghemat Baterai.
+- Pintasan pengaturan Android untuk aplikasi, baterai, layar, penyimpanan, dan Jangan Ganggu.
 
-## Batasan yang disengaja
+## Mengaktifkan Force Performance
 
-Aplikasi tidak melakukan root, overclock CPU/GPU, perubahan governor, pembersihan RAM paksa, atau penghentian proses sistem. Profil penggunaan adalah preset rekomendasi di dalam aplikasi; tindakan yang memerlukan hak istimewa tetap diarahkan ke Pengaturan Android. Suhu baterai bukan pembacaan suhu langsung CPU/GPU, dan status termal hanya tersedia jika Android/firmware mengekspos API tersebut.
+1. Pasang dan jalankan aplikasi Shizuku.
+2. Pada Android 11 atau lebih baru, Shizuku dapat dimulai melalui Wireless debugging dari perangkat itu sendiri. Ikuti petunjuk di aplikasi Shizuku.
+3. Buka VivoBoost P35, tekan **Hubungkan / minta izin Shizuku**, lalu setujui izin yang diminta.
+4. Pilih preset yang ingin diterapkan. Hasil perintah akan ditampilkan di status Shizuku.
+
+Shizuku non-root menggunakan identitas ADB/shell. Dukungan perintah dapat berbeda menurut versi Android dan firmware Vivo. Jika suatu perintah ditolak, aplikasi menampilkan jumlah pengaturan yang berhasil; tidak ada jaminan semua perangkat menerima semua perintah.
+
+## Batasan dan keselamatan
+
+- Force Gaming hanya mengubah skala animasi antarmuka ke 0,5x; pengaturan baterai tidak diubah otomatis.
+- Preset Balanced mengembalikan skala animasi ke 1,0x.
+- Mode Penghemat Baterai memiliki kontrol terpisah agar tidak berubah tanpa pilihan pengguna.
+- Aplikasi tidak mengubah clock CPU/GPU, governor, tegangan, batas termal, atau proteksi suhu.
+- Tidak ada pembersihan RAM paksa atau penghentian proses sistem.
+- Suhu baterai bukan suhu langsung CPU/GPU. Status termal Android bergantung dukungan firmware.
 
 ## Build APK
 
-GitHub Actions menjalankan `gradle assembleDebug` ketika ada push ke `main` atau `master`, atau dapat dijalankan manual dari tab Actions. APK debug diunggah sebagai artifact bernama `VivoBoostP35-debug`.
+GitHub Actions menjalankan `gradle assembleDebug` pada push ke `main` atau `master`, atau secara manual melalui tab Actions. APK debug diunggah sebagai artifact `VivoBoostP35-debug`.
 
-## Persyaratan
+## Build requirements
 
 - Android 6.0+ (minSdk 23).
-- Java 17 dan Android Gradle Plugin 8.7.3 untuk build.
-
-Build CI harus selesai dengan status sukses sebelum APK dianggap siap.
+- Java 17 dan Android Gradle Plugin 8.7.3.
+- Shizuku API 13.1.5 dan core library desugaring.
