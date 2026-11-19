@@ -18,8 +18,7 @@ public class PerformanceUserService extends IPerformanceService.Stub {
                 commands = new String[] {
                     "settings put global window_animation_scale 0.5",
                     "settings put global transition_animation_scale 0.5",
-                    "settings put global animator_duration_scale 0.5",
-                    "cmd power set-mode 0"
+                    "settings put global animator_duration_scale 0.5"
                 };
                 break;
             case "BALANCED":
